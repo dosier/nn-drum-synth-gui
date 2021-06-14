@@ -29,12 +29,12 @@ class MidiConverter(private val midiFile: File, private val progressProperty: Do
         val trackDuration = importTrackEvents(sequence) + 40L
 
         return when (type) {
-            ExportType.WAV -> writeWavForamt(audioSynthesizer, sequence, trackDuration, fileName)
+            ExportType.WAV -> writeWavFormat(audioSynthesizer, sequence, trackDuration, fileName)
             ExportType.DAT -> writeDatFormat(fileName, sequence)
         }
     }
 
-    private fun writeWavForamt(
+    private fun writeWavFormat(
         audioSynthesizer: AudioSynthesizer,
         sequence: Sequence,
         trackDuration: Double,
