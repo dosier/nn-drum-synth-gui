@@ -10,28 +10,92 @@ import javax.sound.sampled.AudioFormat
 import javax.sound.sampled.AudioInputStream
 import javax.sound.sampled.AudioSystem
 
+/**
+ * Class for converting a MIDI formatted file into a file of [type][ExportType].
+ *
+ * @param midiFile the input MIDI formatted file.
+ * @param progressProperty an optional property to track conversion progress.
+ */
 class MidiConverter(private val midiFile: File, private val progressProperty: DoubleProperty? = null) {
 
     private var microsecondsPerQuarterNote = 500_000
 
     private val messages = ArrayList<Pair<Long, MidiMessage>>()
 
+    /**
+     *
+     */
     private val features = HashMap<Int, Array<Boolean?>>()
 
     private var totalTime = 0L
+    private var lastTick = 0L
 
+    /**
+     * Exports the input [midiFile] as a new [File] of [type].
+     */
     fun export(type: ExportType) : File {
 
         val audioSynthesizer = MidiSystem.getSynthesizer() as AudioSynthesizer
         val sequence = MidiSystem.getSequence(midiFile)
 
         val fileName = midiFile.nameWithoutExtension
-        val trackDuration = importTrackEvents(sequence) + 40L
+        val trackDuration = sequence.importTrackEvents()
 
         return when (type) {
             ExportType.WAV -> writeWavFormat(audioSynthesizer, sequence, trackDuration, fileName)
             ExportType.DAT -> writeDatFormat(fileName, sequence)
         }
+    }
+
+    private fun Sequence.importTrackEvents() : Double {
+
+        lastTick = 0L
+        totalTime = 0L
+        messages.clear()
+        features.clear()
+
+        val trackEventIndices = IntArray(tracks.size)
+
+        while (true) {
+            val (nextEvent, nextTrackIndex) = selectNextTrack(trackEventIndices,)
+            if (nextEvent == null || nextTrackIndex == -1)
+                break
+            trackEventIndices[nextTrackIndex]++
+
+            val tick = nextEvent.tick
+            assert(tick <= Int.MAX_VALUE)
+            if (divisionType == Sequence.PPQ)
+                totalTime += ((tick - lastTick) * microsecondsPerQuarterNote / resolution)
+            else
+                totalTime = (tick * 1_000_000.0 * divisionType / resolution).toLong()
+            lastTick = tick
+
+            val noteOnOrOff = features.getOrPut(tick.toInt()) { arrayOfNulls(instrumentsCount) }
+            val message = nextEvent.message
+            when (message) {
+                is ShortMessage -> parseShortMessage(message, noteOnOrOff)
+                is MetaMessage -> microsecondsPerQuarterNote = parseMetaMessage(message, this, microsecondsPerQuarterNote)
+            }
+            if(message !is MetaMessage)
+                messages += totalTime to message
+        }
+        return (totalTime / 1_000_000.0) + 40L
+    }
+
+    private fun Sequence.selectNextTrack(trackEventIndices: IntArray, ): Pair<MidiEvent?, Int> {
+        var nextEvent: MidiEvent? = null
+        var nextTrackIndex: Int = -1
+        for ((trackIndex, track) in tracks.withIndex()) {
+            val eventIndex = trackEventIndices[trackIndex]
+            if (eventIndex < track.size()) {
+                val event = track.get(eventIndex)
+                if (nextEvent == null || event.tick < nextEvent.tick) {
+                    nextEvent = event
+                    nextTrackIndex = trackIndex
+                }
+            }
+        }
+        return Pair(nextEvent, nextTrackIndex)
     }
 
     private fun writeWavFormat(
@@ -94,61 +158,16 @@ class MidiConverter(private val midiFile: File, private val progressProperty: Do
         return file
     }
 
-    private fun importTrackEvents(sequence: Sequence) : Double {
-        val tracks = sequence.tracks
-        var lastTick = 0L
-        totalTime = 0L
-        messages.clear()
-        features.clear()
-
-        val trackEventIndices = IntArray(tracks.size)
-
-        while (true) {
-
-            var nextEvent: MidiEvent? = null
-            var nextTrackIndex: Int = -1
-
-            for ((trackIndex, track) in tracks.withIndex()) {
-                val eventIndex = trackEventIndices[trackIndex]
-                if (eventIndex < track.size()) {
-                    val event = track.get(eventIndex)
-                    if (nextEvent == null || event.tick < nextEvent.tick) {
-                        nextEvent = event
-                        nextTrackIndex = trackIndex
-                    }
-                }
-            }
-
-            if (nextEvent == null || nextTrackIndex == -1)
-                break
-
-            trackEventIndices[nextTrackIndex]++
-            val tick = nextEvent.tick
-
-            if (sequence.divisionType == Sequence.PPQ)
-                totalTime += ((tick - lastTick) * microsecondsPerQuarterNote / sequence.resolution)
-            else
-                totalTime = (tick * 1_000_000.0 * sequence.divisionType / sequence.resolution).toLong()
-
-            lastTick = tick
-            val message = nextEvent.message
-
-            assert(tick <= Int.MAX_VALUE)
-
-            val noteOnOrOff = features.getOrPut(tick.toInt()) { arrayOfNulls(instrumentsCount) }
-
-            when (message) {
-                is ShortMessage -> parseShortMessage(message, noteOnOrOff)
-                is MetaMessage -> microsecondsPerQuarterNote = parseMetaMessage(message, sequence, microsecondsPerQuarterNote)
-            }
-            if(message !is MetaMessage)
-                messages += totalTime to message
-        }
-        return totalTime / 1_000_000.0
-    }
-
     enum class ExportType {
+
+        /**
+         * Represent an audio file format (waveform).
+         */
         WAV,
+
+        /**
+         * Represents a custom (simplified) midi-like format.
+         */
         DAT
     }
 
