@@ -18,12 +18,23 @@ import javax.sound.sampled.AudioSystem
  */
 class MidiConverter(private val midiFile: File, private val progressProperty: DoubleProperty? = null) {
 
+    /**
+     * A higher resolution representation of BPM.
+     */
     private var microsecondsPerQuarterNote = 500_000
 
+    /**
+     * A list of midi messages paired to a tick value.
+     */
     private val messages = ArrayList<Pair<Long, MidiMessage>>()
 
     /**
+     * A map of ticks to an array of nullable booleans.
      *
+     * The array size is equal to [instrumentsCount] (and remains the same for each midi file)
+     * If an element is the array is `null`, it means no midi event was registered for the instrument at that tick.
+     * If an element in the array is `true`, it means a 'note on' event was registered for the instrument at that tick.
+     * If an element in the array is `false`, it means a 'note off' event was registered for the instrument at that tick.
      */
     private val features = HashMap<Int, Array<Boolean?>>()
 
