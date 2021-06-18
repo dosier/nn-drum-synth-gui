@@ -6,6 +6,7 @@ import javafx.beans.property.ObjectProperty
 import javafx.collections.ObservableList
 import javafx.event.EventTarget
 import javafx.scene.control.Button
+import javafx.scene.layout.Priority
 import player.PlayerStyles
 import tornadofx.*
 import java.io.File
@@ -41,12 +42,21 @@ fun EventTarget.generateButton(typeName: String, col: Int, row: Int, init: Butto
 fun EventTarget.fileListView(fileList: ObservableList<File>, selectedFileProperty: ObjectProperty<File>) {
     listview(fileList) {
         selectedFileProperty.bind(selectionModel.selectedItemProperty())
+        cellFormat {
+            text = it.nameWithoutExtension
+        }
     }
 }
 
-fun EventTarget.selectDirectoryButton(typeName: String, init: Button.() -> Unit) {
+fun EventTarget.selectDirectoryButton(typeName: String, directoryProperty: ObjectProperty<File>, init: Button.() -> Unit = {}) {
     button("Select $typeName Directory") {
         maxWidth = Double.MAX_VALUE
         init()
+        action {
+            directoryProperty.set(chooseDirectory {
+                title = "Choose $typeName Directory"
+                initialDirectory = directoryProperty.get()
+            })
+        }
     }
 }

@@ -51,17 +51,13 @@ class CenterView : View() {
             tab("MIDI") {
                 splitpane(Orientation.VERTICAL) {
                     fileListView(controller.midiFileList, controller.selectedMidiFile)
-                    selectDirectoryButton("MIDI") {
-                        action { controller.chooseDirectory(controller.midiFileList) }
-                    }
+                    selectDirectoryButton("MIDI", Properties.inputMidiDirectory)
                 }
             }
             tab("DAT") {
                 splitpane(Orientation.VERTICAL) {
                     fileListView(controller.datFileList, controller.selectedDatFile)
-                    selectDirectoryButton("DAT") {
-                        action { controller.chooseDirectory(controller.datFileList) }
-                    }
+                    selectDirectoryButton("DAT", Properties.inputDatDirectory)
                 }
             }
         }
@@ -102,16 +98,14 @@ class CenterViewController : Controller() {
     internal val selectedDatFile = SimpleObjectProperty<File>()
 
     init {
-        selectDirectory(midiFileList, Paths.get("data/midi").toFile())
-        selectDirectory(datFileList, Paths.get("data/dat").toFile())
+        Properties.inputMidiDirectory.onChange { selectDirectory(midiFileList, it!!, "mid", "midi") }
+        Properties.inputMidiDirectory.get()?.apply { selectDirectory(midiFileList, this,"mid", "midi") }
+
+        Properties.inputDatDirectory.onChange { selectDirectory(datFileList, it!!, "dat") }
+        Properties.inputDatDirectory.get()?.apply { selectDirectory(datFileList, this, "dat") }
     }
 
-    fun chooseDirectory(fileList: ObservableList<File>) {
-        val midiDirectory = chooseDirectory() ?:return
-        selectDirectory(fileList, midiDirectory)
-    }
-
-    private fun selectDirectory(fileList: ObservableList<File>, directory: File) {
+    private fun selectDirectory(fileList: ObservableList<File>, directory: File, vararg extensions: String) {
         if (!directory.exists())
             directory.mkdir()
         var midiDirectory1 = directory
@@ -121,7 +115,10 @@ class CenterViewController : Controller() {
         Files.walkFileTree(midiDirectory1.toPath(), object : FileVisitor<Path> {
             override fun preVisitDirectory(dir: Path?, attrs: BasicFileAttributes?) = FileVisitResult.CONTINUE
             override fun visitFile(file: Path?, attrs: BasicFileAttributes?): FileVisitResult {
-                file?.apply { files.add(toFile()) }
+                file?.toFile()?.apply {
+                    if (isFile && (extensions.isEmpty() || extensions.contains(extension)))
+                        files.add(this)
+                }
                 return FileVisitResult.CONTINUE
             }
 
