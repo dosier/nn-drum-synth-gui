@@ -2,6 +2,7 @@ package midi
 
 import com.sun.media.sound.AudioSynthesizer
 import javafx.beans.property.DoubleProperty
+import javafx.beans.property.ObjectProperty
 import java.io.DataOutputStream
 import java.io.File
 import javax.sound.midi.*
@@ -132,9 +133,8 @@ class MidiConverter(private val midiFile: File, private val progressProperty: Do
 
         audioInputStream = AudioInputStream(audioInputStream, audioInputStream.format, length)
 
-        val output = File("data/wav/$fileName.wav")
-        if (!output.parentFile.exists())
-            output.parentFile.mkdir()
+        val output = Properties.outputWavDirectory.getOrMakeFile(fileName, "wav")
+
         AudioSystem.write(audioInputStream, AudioFileFormat.Type.WAVE, output)
 
         audioSynthesizer.close()
@@ -146,8 +146,8 @@ class MidiConverter(private val midiFile: File, private val progressProperty: Do
      * @param sequence the [midi sequence][javax.sound.midi.Sequence] to convert
      */
     private fun writeDatFormat(name: String, sequence: Sequence, ) : File {
-        val file = File("vector/$name.dat")
-        val bos = DataOutputStream(file.outputStream())
+        val output = Properties.outputDatDirectory.getOrMakeFile(name, "dat")
+        val bos = DataOutputStream(output.outputStream())
         bos.writeFloat(sequence.divisionType)
         bos.writeInt(sequence.resolution)
         for ((tick, notesOnOrOff) in features) {
@@ -166,7 +166,12 @@ class MidiConverter(private val midiFile: File, private val progressProperty: Do
         }
         bos.flush()
         bos.close()
-        return file
+        return output
+    }
+
+    private fun ObjectProperty<File>.getOrMakeFile(name: String, extension: String) = value.toPath().resolve("$name.$extension").toFile().apply {
+        if (!parentFile.exists())
+            parentFile.mkdirs()
     }
 
     enum class ExportType {

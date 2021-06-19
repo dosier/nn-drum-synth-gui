@@ -13,6 +13,7 @@ class MainApp : App(MainView::class, PlayerStyles::class) {
 
     override fun start(stage: Stage) {
         propertiesManager.loadFromFile()
+        Properties.bind(propertiesManager)
         super.start(stage)
         stage.setOnCloseRequest {
             propertiesManager.saveToFile()

@@ -76,8 +76,12 @@ class CenterView : View() {
                 disableProperty().bind(controller.selectedDatFile.isNull)
                 action { controller.generateMIDIFile() }
             }
-            playButton("WAV",0, 1, audioPlayer.file.isNull.or(audioPlayer.disable), audioPlayer.play)
-            playButton("MIDI",0, 2, midiPlayer.file.isNull.or(midiPlayer.disable), midiPlayer.play)
+            generateButton("DAT", 2, 0) {
+                disableProperty().bind(controller.selectedMidiFile.isNull)
+                action { controller.generateDATFile() }
+            }
+//            playButton("WAV",0, 1, audioPlayer.file.isNull.or(audioPlayer.disable), audioPlayer.play)
+//            playButton("MIDI",0, 2, midiPlayer.file.isNull.or(midiPlayer.disable), midiPlayer.play)
         }
     }
 }
@@ -130,7 +134,39 @@ class CenterViewController : Controller() {
     }
 
     fun generateMIDIFile() {
-        DatToMidiConverter(selectedDatFile.get()?:return).exportToMidi()
+        val progressProperty = SimpleDoubleProperty()
+        val task =  object : Task<File>() {
+            override fun call(): File {
+                return DatToMidiConverter(selectedDatFile.get(), progressProperty).exportToMidi()
+            }
+        }
+        taskCompletionProperty.bind(progressProperty)
+        task.setOnFailed {
+            task.exception.printStackTrace()
+        }
+        task.setOnSucceeded {
+            taskCompletionProperty.unbind()
+            taskCompletionProperty.set(0.0)
+        }
+        executor.submit(task)
+    }
+
+    fun generateDATFile() {
+        val progressProperty = SimpleDoubleProperty()
+        val task =  object : Task<File>() {
+            override fun call(): File {
+                return MidiConverter(selectedMidiFile.get(), progressProperty).export(MidiConverter.ExportType.DAT)
+            }
+        }
+        taskCompletionProperty.bind(progressProperty)
+        task.setOnFailed {
+            task.exception.printStackTrace()
+        }
+        task.setOnSucceeded {
+            taskCompletionProperty.unbind()
+            taskCompletionProperty.set(0.0)
+        }
+        executor.submit(task)
     }
 
     fun generateWAVFile(){

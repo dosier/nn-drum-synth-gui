@@ -16,15 +16,15 @@ object Properties {
     val inputMidiDirectory =  SimpleObjectProperty(Paths.get("data/midi").toFile())
     val inputDatDirectory =  SimpleObjectProperty(Paths.get("data/dat").toFile())
 
-    val outputMidiFile = SimpleObjectProperty(Paths.get("data/midi/generated").toFile())
-    val outputWavFile = SimpleObjectProperty(Paths.get("data/wav").toFile())
-    val outputDatFile = SimpleObjectProperty(Paths.get("data/dat").toFile())
+    val outputMidiDirectory = SimpleObjectProperty(Paths.get("data/midi/generated").toFile())
+    val outputWavDirectory = SimpleObjectProperty(Paths.get("data/wav/generated").toFile())
+    val outputDatDirectory = SimpleObjectProperty(Paths.get("data/dat/generated/").toFile())
 
     fun bind(sessionManager: PropertiesManager) {
         sessionManager.bindFile("inputMidiPath", inputMidiDirectory)
-        sessionManager.bindFile("outputMidiPath", outputMidiFile)
-        sessionManager.bindFile("outputWavPath", outputWavFile)
-        sessionManager.bindFile("outputDatPath", outputDatFile)
+        sessionManager.bindFile("outputMidiPath", outputMidiDirectory)
+        sessionManager.bindFile("outputWavPath", outputWavDirectory)
+        sessionManager.bindFile("outputDatPath", outputDatDirectory)
     }
 }
 
@@ -53,8 +53,10 @@ class PropertiesManager(
 
         if (!this::saveThread.isInitialized){
             saveThread = Thread {
-                saveToFile()
-                Thread.sleep(2500L)
+                while (saveThread.isAlive) {
+                    saveToFile()
+                    Thread.sleep(2500L)
+                }
             }
             saveThread.start()
         }
