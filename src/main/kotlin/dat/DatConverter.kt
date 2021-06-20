@@ -36,7 +36,7 @@ class DatConverter(private val datFile: File, private val progressProperty: Simp
             }
             progressProperty.set(total.toDouble().div(inputStream.available()))
         }
-        val output = Properties.outputDatDirectory.getOrMakeFile(datFile.nameWithoutExtension, "midi")
+        val output = Properties.outputMidiDirectory.getOrMakeFile(datFile.nameWithoutExtension, "midi")
         val midiFileWriter = StandardMidiFileWriter()
         midiFileWriter.write(sequence, 1, output)
         return output
