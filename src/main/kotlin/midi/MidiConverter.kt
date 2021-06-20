@@ -3,6 +3,7 @@ package midi
 import com.sun.media.sound.AudioSynthesizer
 import javafx.beans.property.DoubleProperty
 import javafx.beans.property.ObjectProperty
+import org.jetbrains.numkt.array
 import java.io.DataOutputStream
 import java.io.File
 import javax.sound.midi.*
@@ -141,11 +142,34 @@ class MidiConverter(private val midiFile: File, private val progressProperty: Do
         return output
     }
 
+    private fun writeNumpyFormat(name: String, sequence: Sequence) : File {
+        val output = Properties.outputDatDirectory.getOrMakeFile(name+"_${sequence.divisionType}_${sequence.resolution}", "np")
+        val maxTick = features.maxOf { it.key }
+        val bos = DataOutputStream(output.outputStream())
+        for ((tick, notesOnOrOff) in features) {
+            val notesOnOrOffCount = notesOnOrOff.count { it != null }
+            if (notesOnOrOffCount > 0) {
+                bos.writeInt(tick)
+                bos.writeByte(notesOnOrOffCount)
+                for (instrumentIndex in 0 until instrumentsCount) {
+                    val onOrOff = notesOnOrOff[instrumentIndex]
+                    if (onOrOff != null) {
+                        bos.writeByte(instrumentIndex)
+                        bos.writeBoolean(onOrOff)
+                    }
+                }
+            }
+        }
+        bos.flush()
+        bos.close()
+        return output
+    }
+
     /**
      * @param name the name of the file to write to
      * @param sequence the [midi sequence][javax.sound.midi.Sequence] to convert
      */
-    private fun writeDatFormat(name: String, sequence: Sequence, ) : File {
+    private fun writeDatFormat(name: String, sequence: Sequence) : File {
         val output = Properties.outputDatDirectory.getOrMakeFile(name, "dat")
         val bos = DataOutputStream(output.outputStream())
         bos.writeFloat(sequence.divisionType)

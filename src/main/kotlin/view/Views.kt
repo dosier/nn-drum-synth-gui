@@ -1,7 +1,7 @@
 package view
 
 import player.AudioPlayer
-import dat.DatToMidiConverter
+import dat.DatConverter
 import javafx.beans.property.SimpleDoubleProperty
 import javafx.beans.property.SimpleObjectProperty
 import javafx.collections.FXCollections
@@ -137,7 +137,7 @@ class CenterViewController : Controller() {
         val progressProperty = SimpleDoubleProperty()
         val task =  object : Task<File>() {
             override fun call(): File {
-                return DatToMidiConverter(selectedDatFile.get(), progressProperty).exportToMidi()
+                return DatConverter(selectedDatFile.get(), progressProperty).exportToMidi()
             }
         }
         taskCompletionProperty.bind(progressProperty)

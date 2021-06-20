@@ -1,6 +1,8 @@
 package dat
 
+import Properties
 import com.sun.media.sound.StandardMidiFileWriter
+import javafx.beans.property.ObjectProperty
 import javafx.beans.property.SimpleDoubleProperty
 import midi.Instrument
 import java.io.DataInputStream
@@ -8,7 +10,8 @@ import java.io.File
 import javax.sound.midi.MidiEvent
 import javax.sound.midi.ShortMessage
 
-class DatToMidiConverter(private val datFile: File, private val progressProperty: SimpleDoubleProperty) {
+
+class DatConverter(private val datFile: File, private val progressProperty: SimpleDoubleProperty) {
 
     fun exportToMidi() : File {
         val inputStream = DataInputStream(datFile.inputStream())
@@ -33,11 +36,14 @@ class DatToMidiConverter(private val datFile: File, private val progressProperty
             }
             progressProperty.set(total.toDouble().div(inputStream.available()))
         }
-        val output = Properties.outputDatDirectory.get().toPath().resolve("${datFile.nameWithoutExtension}.midi").toFile()
-        if (!output.parentFile.exists())
-            output.parentFile.mkdirs()
+        val output = Properties.outputDatDirectory.getOrMakeFile(datFile.nameWithoutExtension, "midi")
         val midiFileWriter = StandardMidiFileWriter()
         midiFileWriter.write(sequence, 1, output)
         return output
+    }
+
+    private fun ObjectProperty<File>.getOrMakeFile(name: String, extension: String) = value.toPath().resolve("$name.$extension").toFile().apply {
+        if (!parentFile.exists())
+            parentFile.mkdirs()
     }
 }
