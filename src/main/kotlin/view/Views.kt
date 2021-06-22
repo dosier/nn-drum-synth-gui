@@ -52,6 +52,50 @@ class CenterView : View() {
                 splitpane(Orientation.VERTICAL) {
                     fileListView(controller.midiFileList, controller.selectedMidiFile)
                     selectDirectoryButton("MIDI", Properties.inputMidiDirectory)
+                    button("Convert all to DAT") {
+                        disableProperty().bind(Properties.inputMidiDirectory.isNull)
+                        action {
+                            val task = object : Task<Void?>() {
+
+                                override fun call(): Void? {
+                                    val files = ArrayList<File>()
+                                    Files.walkFileTree(
+                                        Properties.inputMidiDirectory.get().toPath(),
+                                        object : FileVisitor<Path> {
+                                            override fun preVisitDirectory(
+                                                dir: Path?,
+                                                attrs: BasicFileAttributes?
+                                            ) = FileVisitResult.CONTINUE
+
+                                            override fun visitFile(
+                                                file: Path?,
+                                                attrs: BasicFileAttributes?
+                                            ): FileVisitResult {
+                                                val f = file!!.toFile()
+                                                if (f.isFile && (f.extension == "midi" || f.extension == "mid"))
+                                                    files += f
+                                                return FileVisitResult.CONTINUE
+                                            }
+
+                                            override fun visitFileFailed(file: Path?, exc: IOException?) =
+                                                FileVisitResult.CONTINUE
+
+                                            override fun postVisitDirectory(dir: Path?, exc: IOException?) =
+                                                FileVisitResult.CONTINUE
+
+                                        })
+                                    taskCompletionProperty.set(0.0)
+                                    for ((index, file) in files.withIndex()) {
+                                        val converter = MidiConverter(file)
+                                        converter.export(MidiConverter.ExportType.DAT)
+                                        taskCompletionProperty.set(index.toDouble() / files.size)
+                                    }
+                                    return null
+                                }
+                            }
+                            executor.submit(task)
+                        }
+                    }
                 }
             }
             tab("DAT") {
@@ -68,17 +112,21 @@ class CenterView : View() {
             gridpaneColumnConstraints {
                 percentWidth = 25.0
             }
-            generateButton("WAV", 0, 0) {
+            generateButton("Generate WAV", 0, 0) {
                 disableProperty().bind(controller.selectedMidiFile.isNull)
                 action { controller.generateWAVFile() }
             }
-            generateButton("MIDI", 1, 0) {
+            generateButton("Generate MIDI", 1, 0) {
                 disableProperty().bind(controller.selectedDatFile.isNull)
                 action { controller.generateMIDIFile() }
             }
-            generateButton("DAT", 2, 0) {
+            generateButton("Generate DAT", 2, 0) {
                 disableProperty().bind(controller.selectedMidiFile.isNull)
                 action { controller.generateDATFile() }
+            }
+            generateButton("Print Summary", 2, 1) {
+                disableProperty().bind(controller.selectedDatFile.isNull)
+                action { controller.printSummary() }
             }
 //            playButton("WAV",0, 1, audioPlayer.file.isNull.or(audioPlayer.disable), audioPlayer.play)
 //            playButton("MIDI",0, 2, midiPlayer.file.isNull.or(midiPlayer.disable), midiPlayer.play)
@@ -149,6 +197,22 @@ class CenterViewController : Controller() {
             taskCompletionProperty.set(0.0)
         }
         executor.submit(task)
+    }
+
+    fun printSummary() {
+        val summary = DatConverter(selectedDatFile.get()).exportToSummary()
+        println("Min interval lengths:")
+        for ((instrument, minInterval) in summary.minIntervalLengths) {
+            println("\t$instrument = $minInterval")
+        }
+        println("Max interval lengths:")
+        for ((instrument, minInterval) in summary.maxIntervalLengths) {
+            println("\t$instrument = $minInterval")
+        }
+        println("Mean interval lengths:")
+        for ((instrument, minInterval) in summary.meanIntervalLengths) {
+            println("\t$instrument = $minInterval")
+        }
     }
 
     fun generateDATFile() {

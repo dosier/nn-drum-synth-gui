@@ -6,7 +6,6 @@ import javafx.beans.property.ObjectProperty
 import javafx.collections.ObservableList
 import javafx.event.EventTarget
 import javafx.scene.control.Button
-import javafx.scene.layout.Priority
 import player.PlayerStyles
 import tornadofx.*
 import java.io.File
@@ -30,12 +29,21 @@ fun EventTarget.playButton(typeName: String, col: Int, row: Int, disableBinding:
 }
 
 fun EventTarget.generateButton(typeName: String, col: Int, row: Int, init: Button.() -> Unit) {
-    button("Generate $typeName file") {
+    button(typeName) {
         useMaxWidth = true
         gridpaneConstraints {
             columnRowIndex(col, row)
         }
         init()
+    }
+}
+
+fun EventTarget.generateText(text: String, col: Int, row: Int) {
+    label(text) {
+        useMaxWidth = true
+        gridpaneConstraints {
+            columnRowIndex(col, row)
+        }
     }
 }
 

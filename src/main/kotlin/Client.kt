@@ -31,7 +31,7 @@ class Client(private val socket: Socket) : Runnable {
             println(`in`.readLine())
             if (tasks.isNotEmpty()) {
                 for (task in tasks){
-                    out.println(task.file.absolutePath)
+                    out.print(task.file.absolutePath)
                     out.flush()
                     val predictedPath = `in`.readLine()
                     val file = File(predictedPath)
