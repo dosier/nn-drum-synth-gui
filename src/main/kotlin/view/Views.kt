@@ -8,6 +8,7 @@ import javafx.collections.FXCollections
 import javafx.collections.ObservableList
 import javafx.concurrent.Task
 import javafx.geometry.Orientation
+import javafx.scene.layout.Priority
 import midi.*
 import player.MidiPlayer
 import tornadofx.*
@@ -51,49 +52,54 @@ class CenterView : View() {
             tab("MIDI") {
                 splitpane(Orientation.VERTICAL) {
                     fileListView(controller.midiFileList, controller.selectedMidiFile)
-                    selectDirectoryButton("MIDI", Properties.inputMidiDirectory)
-                    button("Convert all to DAT") {
-                        disableProperty().bind(Properties.inputMidiDirectory.isNull)
-                        action {
-                            val task = object : Task<Void?>() {
+                    vbox {
+                        vgrow = Priority.NEVER
+                        selectDirectoryButton("MIDI in", Properties.inputMidiDirectory)
+                        selectDirectoryButton("DAT out", Properties.outputDatDirectory)
+                        button("Convert all to DAT") {
+                            maxWidth = Double.MAX_VALUE
+                            disableProperty().bind(Properties.inputMidiDirectory.isNull)
+                            action {
+                                val task = object : Task<Void?>() {
 
-                                override fun call(): Void? {
-                                    val files = ArrayList<File>()
-                                    Files.walkFileTree(
-                                        Properties.inputMidiDirectory.get().toPath(),
-                                        object : FileVisitor<Path> {
-                                            override fun preVisitDirectory(
-                                                dir: Path?,
-                                                attrs: BasicFileAttributes?
-                                            ) = FileVisitResult.CONTINUE
+                                    override fun call(): Void? {
+                                        val files = ArrayList<File>()
+                                        Files.walkFileTree(
+                                            Properties.inputMidiDirectory.get().toPath(),
+                                            object : FileVisitor<Path> {
+                                                override fun preVisitDirectory(
+                                                    dir: Path?,
+                                                    attrs: BasicFileAttributes?
+                                                ) = FileVisitResult.CONTINUE
 
-                                            override fun visitFile(
-                                                file: Path?,
-                                                attrs: BasicFileAttributes?
-                                            ): FileVisitResult {
-                                                val f = file!!.toFile()
-                                                if (f.isFile && (f.extension == "midi" || f.extension == "mid"))
-                                                    files += f
-                                                return FileVisitResult.CONTINUE
-                                            }
+                                                override fun visitFile(
+                                                    file: Path?,
+                                                    attrs: BasicFileAttributes?
+                                                ): FileVisitResult {
+                                                    val f = file!!.toFile()
+                                                    if (f.isFile && (f.extension == "midi" || f.extension == "mid"))
+                                                        files += f
+                                                    return FileVisitResult.CONTINUE
+                                                }
 
-                                            override fun visitFileFailed(file: Path?, exc: IOException?) =
-                                                FileVisitResult.CONTINUE
+                                                override fun visitFileFailed(file: Path?, exc: IOException?) =
+                                                    FileVisitResult.CONTINUE
 
-                                            override fun postVisitDirectory(dir: Path?, exc: IOException?) =
-                                                FileVisitResult.CONTINUE
+                                                override fun postVisitDirectory(dir: Path?, exc: IOException?) =
+                                                    FileVisitResult.CONTINUE
 
-                                        })
-                                    taskCompletionProperty.set(0.0)
-                                    for ((index, file) in files.withIndex()) {
-                                        val converter = MidiConverter(file)
-                                        converter.export(MidiConverter.ExportType.DAT)
-                                        taskCompletionProperty.set(index.toDouble() / files.size)
+                                            })
+                                        taskCompletionProperty.set(0.0)
+                                        for ((index, file) in files.withIndex()) {
+                                            val converter = MidiConverter(file)
+                                            converter.export(MidiConverter.ExportType.DAT)
+                                            taskCompletionProperty.set(index.toDouble() / files.size)
+                                        }
+                                        return null
                                     }
-                                    return null
                                 }
+                                executor.submit(task)
                             }
-                            executor.submit(task)
                         }
                     }
                 }
