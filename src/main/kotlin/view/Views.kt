@@ -1,21 +1,18 @@
 package view
 
-import player.AudioPlayer
-import dat.DatConverter
-import javafx.beans.property.SimpleDoubleProperty
-import javafx.beans.property.SimpleObjectProperty
+import ModelType
+import Task
+import client
+import javafx.beans.property.*
 import javafx.collections.FXCollections
-import javafx.collections.ObservableList
-import javafx.concurrent.Task
-import javafx.geometry.Orientation
-import javafx.scene.layout.Priority
-import midi.*
+import javafx.geometry.Pos
+import javafx.scene.Node
+import javafx.scene.control.Label
+import javafx.scene.control.ToggleButton
+import midi.Instrument
+import player.AudioPlayer
 import player.MidiPlayer
 import tornadofx.*
-import java.io.File
-import java.io.IOException
-import java.nio.file.*
-import java.nio.file.attribute.BasicFileAttributes
 import java.util.concurrent.Executors
 
 private val executor = Executors.newSingleThreadExecutor()
@@ -47,214 +44,121 @@ class CenterView : View() {
 
     private val controller: CenterViewController by inject()
 
-    override val root = splitpane(Orientation.HORIZONTAL) {
-        tabpane {
-            tab("MIDI") {
-                splitpane(Orientation.VERTICAL) {
-                    fileListView(controller.midiFileList, controller.selectedMidiFile)
-                    vbox {
-                        vgrow = Priority.NEVER
-                        selectDirectoryButton("MIDI in", Properties.inputMidiDirectory)
-                        selectDirectoryButton("DAT out", Properties.outputDatDirectory)
-                        button("Convert all to DAT") {
-                            maxWidth = Double.MAX_VALUE
-                            disableProperty().bind(Properties.inputMidiDirectory.isNull)
-                            action {
-                                val task = object : Task<Void?>() {
-
-                                    override fun call(): Void? {
-                                        val files = ArrayList<File>()
-                                        Files.walkFileTree(
-                                            Properties.inputMidiDirectory.get().toPath(),
-                                            object : FileVisitor<Path> {
-                                                override fun preVisitDirectory(
-                                                    dir: Path?,
-                                                    attrs: BasicFileAttributes?
-                                                ) = FileVisitResult.CONTINUE
-
-                                                override fun visitFile(
-                                                    file: Path?,
-                                                    attrs: BasicFileAttributes?
-                                                ): FileVisitResult {
-                                                    val f = file!!.toFile()
-                                                    if (f.isFile && (f.extension == "midi" || f.extension == "mid"))
-                                                        files += f
-                                                    return FileVisitResult.CONTINUE
-                                                }
-
-                                                override fun visitFileFailed(file: Path?, exc: IOException?) =
-                                                    FileVisitResult.CONTINUE
-
-                                                override fun postVisitDirectory(dir: Path?, exc: IOException?) =
-                                                    FileVisitResult.CONTINUE
-
-                                            })
-                                        taskCompletionProperty.set(0.0)
-                                        for ((index, file) in files.withIndex()) {
-                                            val converter = MidiConverter(file)
-                                            converter.export(MidiConverter.ExportType.DAT)
-                                            taskCompletionProperty.set(index.toDouble() / files.size)
-                                        }
-                                        return null
+    override val root = vbox {
+        vbox {
+            alignment = Pos.CENTER
+            vbox {
+                spacing = 5.0
+                alignment = Pos.CENTER
+                hbox {
+                    alignment = Pos.CENTER
+                    spacing = 5.0
+                    label("BPM")
+                    slider(50, 250) {
+                        valueProperty().bindBidirectional(controller.bpmProperty)
+                    }
+                    label(controller.bpmProperty.asString())
+                }
+                hbox {
+                    alignment = Pos.CENTER
+                    spacing = 5.0
+                    label("Iterative applications")
+                    slider(1, 10) {
+                        valueProperty().bindBidirectional(controller.repeatProperty)
+                    }
+                    label(controller.repeatProperty.asString())
+                }
+                combobox<ModelType> {
+                    items.addAll(ModelType.values())
+                    selectionModel.select(ModelType.MANY_TO_MANY_4)
+                    controller.modelTypeProperty.bind(selectionModel.selectedItemProperty())
+                }
+            }
+            hbox {
+                spacing = 5.0
+                gridpane {
+                    alignment = Pos.CENTER
+                    gridpaneColumnConstraints {
+                        percentWidth = 25.0
+                    }
+                    for ((i, instrument) in Instrument.values().withIndex()) {
+                        val children = ArrayList<Node>()
+                        children += Label(instrument.name)
+                        repeat(16) {
+                            children += ToggleButton().apply {
+                                selectedProperty().onChange { value ->
+                                    controller.inStates[it][i] = value
+                                }
+                            }
+                        }
+                        addRow(i, *children.toTypedArray())
+                    }
+                }
+                vbox {
+                    alignment = Pos.CENTER
+                    button("Predict") {
+                        action {
+                            client.predict(Task(
+                                controller.modelTypeProperty.get(),
+                                controller.bpmProperty.get(),
+                                controller.repeatProperty.get(),
+                                controller.inStates)
+                             { data, midiFilePath ->
+//                                val audioFile = MidiConverter(File(midiFilePath)).export(MidiConverter.ExportType.WAV)
+//                                controller.midiPlayer.file.set(audioFile)
+                                for ((i, row) in data.withIndex()) {
+                                    for ((j, value) in row.withIndex()) {
+                                        controller.outStates[i][j].set(value)
                                     }
                                 }
-                                executor.submit(task)
-                            }
+                            })
                         }
                     }
                 }
-            }
-            tab("DAT") {
-                splitpane(Orientation.VERTICAL) {
-                    fileListView(controller.datFileList, controller.selectedDatFile)
-                    selectDirectoryButton("DAT", Properties.inputDatDirectory)
+                gridpane {
+                    alignment = Pos.CENTER
+                    gridpaneColumnConstraints {
+                        percentWidth = 25.0
+                    }
+                    for ((i, instrument) in Instrument.values().withIndex()) {
+                        val children = ArrayList<Node>()
+                        children += Label(instrument.name)
+                        repeat(16) {
+                            children += ToggleButton().apply {
+                                selectedProperty().bind(controller.outStates[it][i])
+                            }
+                        }
+                        addRow(i, *children.toTypedArray())
+                    }
                 }
             }
-        }
-        vbox {
-            createTreeView(midiPlayer.sequenceProperty)
-        }
-        gridpane {
-            gridpaneColumnConstraints {
-                percentWidth = 25.0
-            }
-            generateButton("Generate WAV", 0, 0) {
-                disableProperty().bind(controller.selectedMidiFile.isNull)
-                action { controller.generateWAVFile() }
-            }
-            generateButton("Generate MIDI", 1, 0) {
-                disableProperty().bind(controller.selectedDatFile.isNull)
-                action { controller.generateMIDIFile() }
-            }
-            generateButton("Generate DAT", 2, 0) {
-                disableProperty().bind(controller.selectedMidiFile.isNull)
-                action { controller.generateDATFile() }
-            }
-            generateButton("Print Summary", 2, 1) {
-                disableProperty().bind(controller.selectedDatFile.isNull)
-                action { controller.printSummary() }
-            }
-//            playButton("WAV",0, 1, audioPlayer.file.isNull.or(audioPlayer.disable), audioPlayer.play)
-//            playButton("MIDI",0, 2, midiPlayer.file.isNull.or(midiPlayer.disable), midiPlayer.play)
+//            hbox {
+//                alignment = Pos.CENTER
+//                button("PLAY") {
+//                    disableProperty().bind(controller.midiPlayer.running)
+//                    action {
+//                        controller.midiPlayer.startThread()
+//                    }
+//                }
+//            }
         }
     }
 }
 
 class CenterViewController : Controller() {
-
-    internal val midiFileList = FXCollections.observableArrayList<File>()
-    internal val selectedMidiFile = SimpleObjectProperty<File>().apply {
-        onChange { midiFile ->
-            audioPlayer.file.set(null)
-            if (midiFile != null) {
-                val sequence = openMidiSequence(midiFile)
-                midiPlayer.sequenceProperty.set(sequence)
-            }
+    val midiPlayer = MidiPlayer()
+    val modelTypeProperty = SimpleObjectProperty(ModelType.MANY_TO_MANY_4)
+    val bpmProperty = SimpleIntegerProperty(100)
+    val repeatProperty = SimpleIntegerProperty(100)
+    val toggleRows = FXCollections.observableArrayList<Instrument>()
+    val inStates = Array(16) {
+        Array(Instrument.values().size) {
+            false
         }
     }
-    internal val datFileList = FXCollections.observableArrayList<File>()
-    internal val selectedDatFile = SimpleObjectProperty<File>()
-
-    init {
-        Properties.inputMidiDirectory.onChange { selectDirectory(midiFileList, it!!, "mid", "midi") }
-        Properties.inputMidiDirectory.get()?.apply { selectDirectory(midiFileList, this,"mid", "midi") }
-
-        Properties.inputDatDirectory.onChange { selectDirectory(datFileList, it!!, "dat") }
-        Properties.inputDatDirectory.get()?.apply { selectDirectory(datFileList, this, "dat") }
-    }
-
-    private fun selectDirectory(fileList: ObservableList<File>, directory: File, vararg extensions: String) {
-        if (!directory.exists())
-            directory.mkdir()
-        var midiDirectory1 = directory
-        if (!midiDirectory1.isDirectory)
-            midiDirectory1 = midiDirectory1.parentFile
-        val files = ArrayList<File>()
-        Files.walkFileTree(midiDirectory1.toPath(), object : FileVisitor<Path> {
-            override fun preVisitDirectory(dir: Path?, attrs: BasicFileAttributes?) = FileVisitResult.CONTINUE
-            override fun visitFile(file: Path?, attrs: BasicFileAttributes?): FileVisitResult {
-                file?.toFile()?.apply {
-                    if (isFile && (extensions.isEmpty() || extensions.contains(extension)))
-                        files.add(this)
-                }
-                return FileVisitResult.CONTINUE
-            }
-
-            override fun visitFileFailed(file: Path?, exc: IOException?) = FileVisitResult.CONTINUE
-            override fun postVisitDirectory(dir: Path?, exc: IOException?) = FileVisitResult.CONTINUE
-
-        })
-        fileList.setAll(files)
-    }
-
-    fun generateMIDIFile() {
-        val progressProperty = SimpleDoubleProperty()
-        val task =  object : Task<File>() {
-            override fun call(): File {
-                return DatConverter(selectedDatFile.get(), progressProperty).exportToMidi()
-            }
+    val outStates = Array(16) {
+        Array(Instrument.values().size) {
+            SimpleBooleanProperty()
         }
-        taskCompletionProperty.bind(progressProperty)
-        task.setOnFailed {
-            task.exception.printStackTrace()
-        }
-        task.setOnSucceeded {
-            taskCompletionProperty.unbind()
-            taskCompletionProperty.set(0.0)
-        }
-        executor.submit(task)
-    }
-
-    fun printSummary() {
-        val summary = DatConverter(selectedDatFile.get()).exportToSummary()
-        println("Min interval lengths:")
-        for ((instrument, minInterval) in summary.minIntervalLengths) {
-            println("\t$instrument = $minInterval")
-        }
-        println("Max interval lengths:")
-        for ((instrument, minInterval) in summary.maxIntervalLengths) {
-            println("\t$instrument = $minInterval")
-        }
-        println("Mean interval lengths:")
-        for ((instrument, minInterval) in summary.meanIntervalLengths) {
-            println("\t$instrument = $minInterval")
-        }
-    }
-
-    fun generateDATFile() {
-        val progressProperty = SimpleDoubleProperty()
-        val task =  object : Task<File>() {
-            override fun call(): File {
-                return MidiConverter(selectedMidiFile.get(), progressProperty).export(MidiConverter.ExportType.DAT)
-            }
-        }
-        taskCompletionProperty.bind(progressProperty)
-        task.setOnFailed {
-            task.exception.printStackTrace()
-        }
-        task.setOnSucceeded {
-            taskCompletionProperty.unbind()
-            taskCompletionProperty.set(0.0)
-        }
-        executor.submit(task)
-    }
-
-    fun generateWAVFile(){
-        val progressProperty = SimpleDoubleProperty()
-        val task =  object : Task<File>() {
-            override fun call(): File {
-                return MidiConverter(selectedMidiFile.get(), progressProperty).export(MidiConverter.ExportType.WAV)
-            }
-        }
-        taskCompletionProperty.bind(progressProperty)
-        task.setOnFailed {
-            task.exception.printStackTrace()
-        }
-        task.setOnSucceeded {
-            audioPlayer.file.set(task.value)
-            taskCompletionProperty.unbind()
-            taskCompletionProperty.set(0.0)
-        }
-        executor.submit(task)
     }
 }

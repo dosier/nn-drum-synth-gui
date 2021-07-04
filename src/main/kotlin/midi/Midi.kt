@@ -137,13 +137,13 @@ fun ShortMessage.getMessageStatus() = when(status) {
 enum class Instrument(vararg val pitches: Int) {
     KICK(36),
     SNARE(38, 40, 37),
-    HIGH_TOM(48, 50),
-    LOW_MID_TOM(45, 47),
-    HIGH_FLOOR_TOM(43, 58),
+//    HIGH_TOM(48, 50),
+//    LOW_MID_TOM(45, 47),
+//    HIGH_FLOOR_TOM(43, 58),
     OPEN_HI_HAT(46, 26),
     CLOSED_HI_HAT(42, 22, 44),
-    CRASH(49, 55, 57, 52),
-    RIDE(51, 59, 53)
+//    CRASH(49, 55, 57, 52),
+//    RIDE(51, 59, 53)
 }
 fun ShortMessage.getInstrument() = if (status in 128..175)
     Instrument.values().find { it.pitches.contains(data1) }!!
